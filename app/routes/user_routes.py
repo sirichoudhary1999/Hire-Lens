@@ -58,8 +58,7 @@ def login_user():
 
 
 # CREATE USER
-@user_bp.route("/users", methods = ["POST"])
-@jwt_required()
+@user_bp.route("/user/register", methods = ["POST"])
 def create_user():
     data = request.get_json()
     response = {
@@ -103,10 +102,12 @@ def create_user():
     db.session.add(user)
     db.session.commit()
 
-    response["data"] = user.to_dict()
+    response["data"] = {
+                "user" : user.to_dict(),
+        }    
     response["meta"] =  {
-            "success" : True,
-            "message" : "User registered successfully",
+                "success" : True,
+                "message" : "User registered successfully",
         }
     return jsonify(response), 200
 
