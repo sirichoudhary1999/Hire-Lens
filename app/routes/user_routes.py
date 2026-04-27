@@ -24,7 +24,7 @@ def login_user():
             "message" : "Email and Password are requied",
             "status"  : 1000,
         }
-        return response
+        return jsonify(response), 400
 
     user = User.query.filter_by(email=data["email"]).first()
 
@@ -34,7 +34,7 @@ def login_user():
             "message" : "User not found",
             "success" : False
         }
-        return jsonify(response)
+        return jsonify(response), 404
 
     if not user.check_password(data["password"]):
         response["meta"] = {
@@ -42,11 +42,11 @@ def login_user():
             "message" : "Invalid Credentials",
             "success" : False
         }
-        return jsonify(response)
+        return jsonify(response), 401
     
-    access_token = create_access_token(identity=user.id)
+    access_token = create_access_token(identity=str(user.id))
     response["data"] = {
-            "user" : user.to_dict(),
+            "user" : user.get_username_id(),
             "access_token": access_token
         }
 
@@ -101,9 +101,10 @@ def create_user():
 
     db.session.add(user)
     db.session.commit()
-
+    access_token = create_access_token(identity=str(user.id))
     response["data"] = {
-                "user" : user.to_dict(),
+                "user" : user.get_username_id(),
+                "access_token": access_token
         }    
     response["meta"] =  {
                 "success" : True,
@@ -114,26 +115,31 @@ def create_user():
 
 # GET ALL USERS
 @user_bp.route("/users", methods = ["GET"])
+@jwt_required()
 def get_users():
     users = User.query.all()
-    return jsonify([user.to_dict() for user in users])
+    return jsonify([user.get_username_id() for user in users])
 
 
 # GET USER BY ID
-@user_bp.route("/users/<int:user_id>", methods = ["GET"])
-def get_user(user_id):
-    user = User.query.filter_by(id = user_id).first()
+@user_bp.route("/user/primaryProfileDatabyId", methods = ["GET"])
+@jwt_required()
+def get_user():
 
-    if not user :
-        return jsonify({
-            "status"  : 1001,
-            "message" : "User not found"
-        })
+    user = User.query.get(int(get_jwt_identity()))
+    user_details_response = {
 
-    return jsonify(user.to_dict()), 200
+        'data': user.get_user_details(),
+        "meta": {
+            "success": True,
+            "message": "User details fetched successfully"
+        }
+    }
+    return jsonify(user_details_response), 200
 
 # UPDATE USER
-@user_bp.route("/users/<int:user_id>", methods = ["PUT"])
+@user_bp.route("/user/updatePrimaryProfileData/<int:user_id>", methods = ["PUT"])
+@jwt_required()
 def update_user(user_id):
     response = {
         "data" : {},
@@ -142,7 +148,7 @@ def update_user(user_id):
             "message" : "",
         }
     }
-    current_user_id = get_jwt_identity()
+    current_user_id = int(get_jwt_identity())
     if current_user_id != user_id:
         response["meta"] ={
             "message": "Unauthorized user",
@@ -150,27 +156,34 @@ def update_user(user_id):
         }
         return jsonify(response), 403
 
-    user = User.query.get(id = user_id)
+    user = User.query.get(user_id)
 
     if not user:
         response["meta"] = {
             "success"  : True,
             "message" : "User not found"
         }
-        return jsonify(response), 200
+        return jsonify(response), 400
     data = request.get_json()
 
-    if "email" in data:
-        user.email = data["email"]
-    if "username" in data:
-        user.username = data["username"]
+    for key, value in data.items():
+        if hasattr(user, key) :
+            setattr(user, key, value)
 
     db.session.commit()
-    return jsonify(user.to_dict()), 200
+    return jsonify(
+        {
+            "data": user.get_username_id(),
+            "meta": {
+                "success": True,
+                "message": "User updated successfully"
+            }
+        }), 200
 
 
 # DELETE USER
-@user_bp.route("/users/<int:user_id>", methods = ["DELETE"])
+@user_bp.route("/user/<int:user_id>", methods = ["DELETE"])
+@jwt_required()
 def delete_user(user_id):
     user = User.query.filter_by(id = user_id).first()
     if not user :
@@ -184,3 +197,54 @@ def delete_user(user_id):
     return jsonify({
         "message": "User deleted successfully"
     })
+
+#UPDATE PASSWORD
+@user_bp.route("/users/<int:user_id>/password", methods = ["PUT"])
+@jwt_required()
+def update_password(user_id):
+    response = {
+        "data" : {},
+        "meta" : {
+            "success" : True,
+            "message" : "",
+        }
+    }
+    current_user_id = int(get_jwt_identity())
+    if current_user_id != user_id:
+        response["meta"] ={
+            "message": "Unauthorized user",
+            "success": False
+        }
+        return jsonify(response), 403
+
+    user = User.query.get(user_id)
+
+    if not user:
+        response["meta"] = {
+            "success"  : True,
+            "message" : "User not found"
+        }
+        return jsonify(response), 404
+    data = request.get_json()
+    new_password = data.get("new_password")
+    current_password = data.get("current_password")
+
+    if current_password in data and new_password in data:
+
+        if not user.check_password(current_password):
+            return jsonify({
+                "meta": {"success": False, "message": "Current password incorrect"}
+            }), 400
+
+    user.set_password(data["new_password"])
+
+    user.set_password(new_password)
+    db.session.commit()
+    return jsonify(
+        {
+            "data": user.get_username_id(),
+            "meta": {
+                "success": True,
+                "message": "Password updated successfully"
+            }
+        }), 200
