@@ -122,11 +122,33 @@ def get_users():
 
 
 # GET USER BY ID
-@user_bp.route("/user/primaryProfileDatabyId", methods = ["GET"])
+@user_bp.route("/user/primaryProfileDatabyId/<int:user_id>", methods = ["GET"])
 @jwt_required()
-def get_user():
+def get_user(user_id):
+    response = {
+        "data" : {},
+        "meta" : {
+            "success" : True,
+            "message" : "",
+        }
+    }
+    current_user_id = int(get_jwt_identity())
+    if current_user_id != user_id:
+        response["meta"] ={
+            "message": "Unauthorized user",
+            "success": False
+        }
+        return jsonify(response), 403
 
-    user = User.query.get(int(get_jwt_identity()))
+    user = User.query.get(user_id)
+
+    if not user:
+        response["meta"] = {
+            "success"  : True,
+            "message" : "User not found"
+        }
+        return jsonify(response), 400
+
     user_details_response = {
 
         'data': user.get_user_details(),

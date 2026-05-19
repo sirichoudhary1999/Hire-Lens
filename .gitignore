@@ -6,3 +6,8 @@ __pycache__/
 venv/
 .env.local
 instance/
+
+# Uploads
+uploads/
+*.pdf
+*.docx
