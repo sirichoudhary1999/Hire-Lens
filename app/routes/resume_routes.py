@@ -145,7 +145,8 @@ def _extract_experience_bullets(experiences):
 
 def _analyze_resume_content(resume, job_description):
     resume_text = _collect_resume_text(resume)
-    keywords = _extract_keywords(job_description)
+    job_description = (job_description or "").strip()
+    keywords = _extract_keywords(job_description) if job_description else []
 
     present_keywords = [k for k in keywords if re.search(rf"\b{re.escape(k)}\b", resume_text)]
     missing_keywords = [k for k in keywords if k not in present_keywords]
@@ -176,17 +177,21 @@ def _analyze_resume_content(resume, job_description):
         if any(re.search(pattern, normalized) for pattern in passive_patterns):
             passive_hits.append(normalized)
 
-    keyword_coverage_score = int((len(present_keywords) / max(len(keywords), 1)) * 50)
-    missing_penalty = min(len(missing_keywords) * 3, 20)
+    keyword_coverage_score = int((len(present_keywords) / max(len(keywords), 1)) * 50) if keywords else 0
+    missing_penalty = min(len(missing_keywords) * 3, 20) if keywords else 0
     weak_penalty = min(len(weak_bullets) * 2, 15)
     passive_penalty = min(len(passive_hits) * 2, 10)
     quant_penalty = min(len(quantification_issues) * 2, 10)
     ats_score = max(0, min(100, 90 + keyword_coverage_score - missing_penalty - weak_penalty - passive_penalty - quant_penalty))
 
+    if not job_description:
+        ats_score = max(0, min(100, 100 - weak_penalty - passive_penalty - quant_penalty))
+
     recommended_keywords = missing_keywords[:8] if missing_keywords else keywords[:8]
 
     return {
         "ats_score": ats_score,
+        "analysis_mode": "generic" if not job_description else "job_description",
         "missing_skills": [skill.title() for skill in missing_keywords[:10]],
         "weak_bullet_points": weak_bullets[:5],
         "too_much_passive_language": passive_hits[:5],
@@ -524,14 +529,6 @@ def analyze_resume(resume_id):
     job_description = data.get("job_description", "")
     permission_mode = (data.get("permission_mode", "manual") or "manual").lower()
     apply_changes = bool(data.get("apply_changes", False))
-
-    if not job_description.strip():
-        return jsonify({
-            "meta": {
-                "success": False,
-                "message": "Job description is required for resume analysis"
-            }
-        }), 400
 
     if permission_mode not in ["manual", "auto"]:
         return jsonify({
