@@ -23,6 +23,9 @@ Flask-JWT-Extended==4.6.0
 python-dotenv==1.0.0
 PyPDF2==3.0.1
 python-docx==1.1.0
+reportlab==4.2.5
+requests==2.32.3
+beautifulsoup4==4.12.3
 
 # AI Providers
 openai==1.12.0
