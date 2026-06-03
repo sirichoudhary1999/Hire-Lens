@@ -14,7 +14,8 @@ def _to_bool(value, default=False):
 def _parse_csv(value):
     if not value:
         return []
-    return [item.strip() for item in str(value).split(",") if item.strip()]
+    # Normalize origin values so "https://site.com/" and "https://site.com" both work.
+    return [item.strip().rstrip("/") for item in str(value).split(",") if item.strip()]
 
 class Config:
     ENV = os.getenv("FLASK_ENV", "production").lower()
